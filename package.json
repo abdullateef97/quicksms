@@ -6,9 +6,23 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "author": "Abdullateef",
   "license": "MIT",
   "dependencies": {
     "request": "^2.83.0"
-  }
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abdullateef97/quicksms.git"
+  },
+  "keywords": [
+    "sms",
+    "quicksms",
+    "node"
+  ],
+  "bugs": {
+    "url": "https://github.com/abdullateef97/quicksms/issues"
+  },
+  "homepage": "https://github.com/abdullateef97/quicksms#readme"
 }
