@@ -8,9 +8,9 @@ export let quickSms = ()=>{
 
 
 //cred = {'username':'your username','password' : 'your password'}
-quickSms.prototype.setCredentials = (cred)=>{
-this.username = cred.username;
-this.password = cred.password;
+quickSms.prototype.setCredentials = (username,password)=>{
+this.username = username;
+this.password = password;
 }
 
 let base_url = 'http://www.quicksms1.com/api/sendsms.php?';
@@ -21,8 +21,8 @@ quickSms.prototype.genUrl = (sender,message,recipient) => {
     return url;
 }
 
-// options = {'sender':'sender','message':'your text message','recipient':'recipient'}
-quickSms.prototype.sendSms = (options,cb) => {
+
+quickSms.prototype.sendSms = (sender,message,recipient,cb) => {
     if(!this.username || !this.password){
         console.log('username or password is incorrect');
         cb(err);
@@ -37,7 +37,7 @@ quickSms.prototype.sendSms = (options,cb) => {
 
 //options = {'sender':'sender','message':'your text message','recipientFile':'./recipientFile'}
 
-quickSms.prototype.sendBulk = (options,cb) => {
+quickSms.prototype.sendBulk = (sender,message,recipientFile,cb) => {
     if(!this.username || !this.password){
         console.log('username or password is incorrect');
         cb(err);

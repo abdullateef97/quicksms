@@ -19,7 +19,7 @@ Create your username and password from [ quicksms official website ](http://quic
 For error and response code, do check the [official quicksms docs](http://quicksms1.com/page/3)
 
 ```
-quicksms.setCredentials({username,password});
+quicksms.setCredentials(username,password);
 ```
 
 ## Parameters
@@ -30,13 +30,12 @@ quicksms.setCredentials({username,password});
     
 ## Send SMS
 ```
-quicksms.sendSms(options,cb);
-N.B options = {'sender':'sender','message':'your text message','recipient':'recipient'}
+quicksms.sendSms(sender,message,recipient,cb);
 ```
 ## Send Bulk Sms
 ```
-quicksms.sendBulk(options,cb);
-N.B options = {'sender':'sender','message':'your text message','recipientFile':'./recipientFile'}
+quicksms.sendBulk(sender,message,recipientFile,cb);
+
 ```
 
 ## Check your quicksms balance
