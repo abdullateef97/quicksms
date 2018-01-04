@@ -1,7 +1,7 @@
 let request = require('request');
 let fs = require('fs');
 
-export let quickSms = ()=>{
+let quickSms = ()=>{
     this.username;
     this.password;
 }
@@ -74,6 +74,9 @@ quickSms.deliveryReport = (msgId, cb) => {
         cb(response);
     })
 }
+
+
+module.exports = new quickSms;
 
 
 
