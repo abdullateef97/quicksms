@@ -81,7 +81,7 @@ let deliveryReport = (msgId, cb) => {
 }
 
 
-module.exports = new quickSms;
+module.exports =  quickSms;
 
 
 
