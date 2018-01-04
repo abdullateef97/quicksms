@@ -4,11 +4,16 @@ let fs = require('fs');
 let quickSms = ()=>{
     this.username;
     this.password;
+    this.setCredentials = setCredentials;
+    this.sendSms = sendSms;
+    this.sendBulk = sendBulk;
+    this.balance = balance;
+    this.deliveryReport = deliveryReport
 }
 
 
 //cred = {'username':'your username','password' : 'your password'}
-quickSms.prototype.setCredentials = (username,password)=>{
+let setCredentials = (username,password)=>{
 this.username = username;
 this.password = password;
 }
@@ -16,19 +21,19 @@ this.password = password;
 let base_url = 'http://www.quicksms1.com/api/sendsms.php?';
 let end_url = '&report=1&convert=1&route=1';
 
-quickSms.prototype.genUrl = (sender,message,recipient) => {
+let genUrl = (sender,message,recipient) => {
     let url = base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient.join(',')+end_url;
     return url;
 }
 
 
-quickSms.prototype.sendSms = (sender,message,recipient,cb) => {
+let sendSms = (sender,message,recipient,cb) => {
     if(!this.username || !this.password){
         console.log('username or password is incorrect');
         cb(err);
         return;
     }
-    let url = this.genUrl(sender,message,recipient);
+    let url = genUrl(sender,message,recipient);
     request(url, (err,response,body) => {
         if(err) cb(err);
         cb(response);
@@ -37,7 +42,7 @@ quickSms.prototype.sendSms = (sender,message,recipient,cb) => {
 
 //options = {'sender':'sender','message':'your text message','recipientFile':'./recipientFile'}
 
-quickSms.prototype.sendBulk = (sender,message,recipientFile,cb) => {
+let sendBulk = (sender,message,recipientFile,cb) => {
     if(!this.username || !this.password){
         console.log('username or password is incorrect');
         cb(err);
@@ -50,7 +55,7 @@ quickSms.prototype.sendBulk = (sender,message,recipientFile,cb) => {
             return;
         }
         phoneNumbersArray = data.split(',');
-        let url = this.genUrl(sender,message,phoneNumbersArray);
+        let url = genUrl(sender,message,phoneNumbersArray);
         request(url, (err,response,body) => {
             if(err) cb(err);
             cb(response);
@@ -59,7 +64,7 @@ quickSms.prototype.sendBulk = (sender,message,recipientFile,cb) => {
     })
 }
 
-quickSms.prototype.balance = (cb)=>{
+let balance = (cb)=>{
     let url = base_url+"username="+this.username+"&password="+this.password+"&balance=1";
     request(url, (err,response,body) => {
         if(err) cb(err);
@@ -67,7 +72,7 @@ quickSms.prototype.balance = (cb)=>{
     })
 }
 
-quickSms.deliveryReport = (msgId, cb) => {
+let deliveryReport = (msgId, cb) => {
     let url = "http://www.quicksms1.com/api/getdelivery.php?username="+this.username+"&password="+this.password+"&msgid="+msgId;
     request(url, (err, response,body) => {
         if(err) cb(err);
