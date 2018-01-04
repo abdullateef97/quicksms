@@ -28,7 +28,7 @@ quickSms.prototype.sendSms = (sender,message,recipient,cb) => {
         cb(err);
         return;
     }
-    let url = this.genUrl(options.sender,options.message,options.recipient);
+    let url = this.genUrl(sender,message,recipient);
     request(url, (err,response,body) => {
         if(err) cb(err);
         cb(response);
@@ -44,13 +44,13 @@ quickSms.prototype.sendBulk = (sender,message,recipientFile,cb) => {
         return;
     }
     
-    fs.readFile(options.recipientFile,(err,data) => {
+    fs.readFile(recipientFile,(err,data) => {
         if(err){
             cb(err);
             return;
         }
         phoneNumbersArray = data.split(',');
-        let url = this.genUrl(options.sender,options.message,options.phoneNumbersArray);
+        let url = this.genUrl(sender,message,phoneNumbersArray);
         request(url, (err,response,body) => {
             if(err) cb(err);
             cb(response);
