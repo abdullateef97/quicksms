@@ -1,10 +1,11 @@
 let request = require('request');
 let fs = require('fs');
 
-let quickSms = ()=>{
+function quickSms(){
     this.username;
     this.password;
     this.setCredentials = setCredentials;
+    this.genUrl = genUrl;
     this.sendSms = sendSms;
     this.sendBulk = sendBulk;
     this.balance = balance;
@@ -21,22 +22,30 @@ this.password = password;
 let base_url = 'http://www.quicksms1.com/api/sendsms.php?';
 let end_url = '&report=1&convert=1&route=1';
 
-function genUrl  (sender,message,recipient) {
-    let url = base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient.join(',')+end_url;
+function genUrl(sender,message,recipient) {  
+    let url;
+    if(typeof recipient !== 'object'){
+        url = base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient+end_url;
+    }
+    else{
+        url = base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient.join(',')+end_url;
+    }
     return url;
 }
 
 
 function sendSms (sender,message,recipient,cb) {
+    console.log(this.username)
     if(!this.username || !this.password){
         console.log('username or password is incorrect');
         cb(err);
         return;
     }
     let url = genUrl(sender,message,recipient);
+    console.log(url);
     request(url, (err,response,body) => {
         if(err) cb(err);
-        cb(response);
+        cb(body);
     })
 }
 
