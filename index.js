@@ -1,99 +1,86 @@
-let request = require('request');
-let fs = require('fs');
+const fs = require('fs');
+const request = require('request');
 
-function quickSms(){
-    this.username;
-    this.password;
-    this.setCredentials = setCredentials;
-    this.genUrl = genUrl;
-    this.sendSms = sendSms;
-    this.sendBulk = sendBulk;
-    this.balance = balance;
-    this.deliveryReport = deliveryReport
-}
+class quickSms{
+    constructor(){
+        this.username;
+        this.password;
+        this.base_url = 'http://www.quicksms1.com/api/sendsms.php?';
+        this.end_url = '&report=1&convert=1&route=1';
+    }
 
+    setCredentials(username, password){
+        this.username = username;
+        this.password = password;
+    }
 
-//cred = {'username':'your username','password' : 'your password'}
-function setCredentials (username,password){
-this.username = username;
-this.password = password;
-}
-
-let base_url = 'http://www.quicksms1.com/api/sendsms.php?';
-let end_url = '&report=1&convert=1&route=1';
-
-function genUrl(sender,message,recipient) {  
+    genUrl(sender,message,recipient){
     let url;
     if(typeof recipient !== 'object'){
-        url = base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient+end_url;
+        url = this.base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient+this.end_url;
     }
     else{
-        url = base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient.join(',')+end_url;
+        url = this.base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient.join(',')+this.end_url;
     }
     return url;
-}
-
-
-function sendSms (sender,message,recipient,cb) {
-    console.log(this.username)
-    if(!this.username || !this.password){
-        console.log('username or password is incorrect');
-        cb(err);
-        return;
     }
-    let url = genUrl(sender,message,recipient);
-    console.log(url);
-    request(url, (err,response,body) => {
-        if(err) cb(err);
-        cb(body);
-    })
-}
 
-//options = {'sender':'sender','message':'your text message','recipientFile':'./recipientFile'}
 
-function sendBulk (sender,message,recipientFile,cb) {
-    if(!this.username || !this.password){
-        console.log('username or password is incorrect');
-        cb(err);
-        return;
-    }
-    
-    fs.readFile(recipientFile,(err,data) => {
-        if(err){
+    sendSms(sender,message,recipient,cb){
+        console.log(this.username)
+        if(!this.username || !this.password){
+            console.log('username or password is incorrect');
             cb(err);
             return;
         }
-        phoneNumbersArray = data.split(',');
-        let url = genUrl(sender,message,phoneNumbersArray);
+        let url = this.genUrl(sender,message,recipient);
+       
         request(url, (err,response,body) => {
             if(err) cb(err);
-            cb(response);
+            cb(body);
         })
+    }
 
-    })
+    sendBulk(sender,message,recipientFile,cb){
+        if(!this.username || !this.password){
+            console.log('username or password is incorrect');
+            cb(err);
+            return;
+        }
+        
+        fs.readFile(recipientFile,(err,data) => {
+            if(err){
+                cb(err);
+                return;
+            }
+            phoneNumbersArray = data.split(',');
+            let url = this.genUrl(sender,message,phoneNumbersArray);
+            request(url, (err,response,body) => {
+                if(err) cb(err);
+                cb(body);
+            })
+    
+        })
+    }
+
+    getDeliveryReport(msgId,cb){
+        let url = "http://www.quicksms1.com/api/getdelivery.php?username="+this.username+"&password="+this.password+"&msgid="+msgId;
+        request(url, (err, response,body) => {
+            if(err) cb(err);
+            cb(body);
+        })
+    }
+
+    getBalance(cb){
+        let url = base_url+"username="+this.username+"&password="+this.password+"&balance=1";
+        request(url, (err,response,body) => {
+            if(err) cb(err);
+            cb(body);
+        })
+    }
+
+
 }
 
-function balance(cb) {
-    let url = base_url+"username="+this.username+"&password="+this.password+"&balance=1";
-    request(url, (err,response,body) => {
-        if(err) cb(err);
-        cb(response);
-    })
-}
 
-function deliveryReport(msgId, cb) {
-    let url = "http://www.quicksms1.com/api/getdelivery.php?username="+this.username+"&password="+this.password+"&msgid="+msgId;
-    request(url, (err, response,body) => {
-        if(err) cb(err);
-        cb(response);
-    })
-}
-
-
-module.exports =  quickSms;
-
-
-
-
-
-
+module.exports = new quickSms
