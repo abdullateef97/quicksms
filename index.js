@@ -27,7 +27,6 @@ class quickSms{
 
 
     sendSms(sender,message,recipient,cb){
-        console.log(this.username)
         if(!this.username || !this.password){
             console.log('username or password is incorrect');
             cb(err);
