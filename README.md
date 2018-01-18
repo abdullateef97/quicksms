@@ -41,13 +41,13 @@ quicksms.sendBulk(sender,message,recipientFile,cb);
 ## Check your quicksms balance
 
 ```
-quicksms.balance(cb);
+quicksms.getBalance(cb);
 ```
 
 ## Get the delivery Report for a message
 
 ```
-quicksms.deliveryReport(msgId,cb);
+quicksms.getDeliveryReport(msgId,cb);
 ```
 
 ## Contributing
