@@ -26,7 +26,7 @@ quicksms.setCredentials(username,password);
     sender :- the Sender of the message,
     recipientFile :- the file path containing the Phone Numbers (for bulk sms, numbers should be seperated by ",")
     message :- the content of the message to be sent
-    N.B :- Ignore the '+' sign infront of phone numbers, instead of '+23456868' use '23456868'
+    N.B :- Ignore the '+' sign in front of phone numbers, instead of '+23456868' use '23456868'
     
 ## Send SMS
 ```
