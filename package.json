@@ -1,6 +1,6 @@
 {
   "name": "quicksms",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Send sms with quick sms1",
   "main": "index.js",
   "scripts": {
