@@ -71,9 +71,10 @@ class quickSms{
     }
 
     getBalance(cb){
-        let url = base_url+"username="+this.username+"&password="+this.password+"&balance=1";
+        let url = this.base_url+"username="+this.username+"&password="+this.password+"&balance=1";
         request(url, (err,response,body) => {
             if(err) cb(err);
+           
             cb(body);
         })
     }
