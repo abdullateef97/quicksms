@@ -15,7 +15,7 @@ class quickSms{
     }
 
     genUrl(sender,message,recipient){
-    let url;
+    let url = '';
     if(typeof recipient !== 'object'){
         url = this.base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient+this.end_url;
     }
@@ -27,7 +27,7 @@ class quickSms{
 
 
     sendSms(sender,message,recipient,cb){
-        if(!this.username || !this.password){
+        if(!this.username && !this.password){
             console.log('username or password is incorrect');
             cb(err);
             return;
@@ -41,7 +41,7 @@ class quickSms{
     }
 
     sendBulk(sender,message,recipientFile,cb){
-        if(!this.username || !this.password){
+        if(!this.username && !this.password){
             console.log('username or password is incorrect');
             cb(err);
             return;
@@ -63,20 +63,26 @@ class quickSms{
     }
 
     getDeliveryReport(msgId,cb){
+        if(!this.username && !this.password){
+            conosle.log('jjjj')
         let url = "http://www.quicksms1.com/api/getdelivery.php?username="+this.username+"&password="+this.password+"&msgid="+msgId;
+        console.log(url);
         request(url, (err, response,body) => {
             if(err) cb(err);
             cb(body);
-        })
+        });
+    }
     }
 
     getBalance(cb){
+        if(!this.username && !this.password){
         let url = this.base_url+"username="+this.username+"&password="+this.password+"&balance=1";
         request(url, (err,response,body) => {
             if(err) cb(err);
            
             cb(body);
-        })
+        });
+    }
     }
 
 
