@@ -18,11 +18,11 @@ class quickSms{
             _checkCredentials(this).then(() => {
                 let url = _parseUrl(sender, message, recipient, this);
                 request(url, (err,response,body) => {
-                    if(err) cb(err);
+                    if(err) reject(err);
                     cb(body);
                 })
             });
-        });
+        }).catch(err => reject(err));
     }
       
     

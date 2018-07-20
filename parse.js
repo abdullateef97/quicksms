@@ -19,4 +19,16 @@
                 return resolve();
             }
             reject(ErrorMessage.USERNAME_OR_PASSWORD_NOT_SET);
-        });
+    });
+
+    export const _parseResponse = messageBody => {
+        
+    }
+
+    _successResponse = (messageBody) =>{
+
+    }
+
+    _failureResponse = (messageBody) => {
+
+    }
