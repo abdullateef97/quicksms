@@ -1,0 +1,544 @@
+Setting client pid to 14954
+SERVER: changeConfig: settings -> {"xml":{},"java":{"home":null,"jdt":{"ls":{"vmargs":"-noverify -Xmx1G -XX:+UseG1GC -XX:+UseStringDeduplication"}},"errors":{"incompleteClasspath":{"severity":"warning"}},"configuration":{"updateBuildConfiguration":"interactive","maven":{"userSettings":null}},"trace":{"server":"off"},"import":{"gradle":{"enabled":true},"maven":{"enabled":true},"exclusions":["**/node_modules/**","**/.metadata/**","**/archetype-resources/**","**/META-INF/maven/**"]},"referencesCodeLens":{"enabled":false},"signatureHelp":{"enabled":false},"implementationsCodeLens":{"enabled":false},"format":{"enabled":true,"settings":{"url":null,"profile":null},"comments":{"enabled":true},"onType":{"enabled":true}},"saveActions":{"organizeImports":false},"contentProvider":{"preferred":null},"autobuild":{"enabled":true},"completion":{"overwrite":true,"guessMethodArguments":false,"favoriteStaticMembers":["org.junit.Assert.*","org.junit.Assume.*","org.junit.jupiter.api.Assertions.*","org.junit.jupiter.api.Assumptions.*","org.junit.jupiter.api.DynamicContainer.*","org.junit.jupiter.api.DynamicTest.*"],"importOrder":["java","javax","com","org"]},"progressReports":{"enabled":true},"debug":{"logLevel":"warn","settings":{"showHex":false,"showStaticVariables":true,"showQualifiedNames":false,"maxStringLength":0,"enableHotCodeReplace":true}},"test":{"report":{"position":"sideView"}}}}
+didOpen: TextDocumentItem [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSms.java"
+  languageId = "java"
+  version = 1
+  text = "/*\n * Copyright 2018 Emmanuel Kehinde\n *\n * Licensed under the Apache License, Version 2.0 (the "License");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an "AS IS" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage com.emmanuelkehinde.quicksms;\n\nimport android.support.annotation.NonNull;\nimport android.util.Log;\n\nimport retrofit2.Call;\nimport retrofit2.Callback;\nimport retrofit2.Response;\n\n\npublic class QuickSms {\n\n    private static final String BALANCE_QUERY = "1";\n    private static final String CONVERT_QUERY = "1";\n    private static final String REPORT_QUERY = "1";\n    private static final String ROUTE_QUERY_DND = "1";\n    private static final String ROUTE_QUERY_NO_DND = "0";\n\n    private String username;\n    private String password;\n\n    private Task<SendSmsResult> sendSmsTask;\n    private Task<GetAccountBalanceResult> getAccountBalanceTask;\n    private Task<GetDeliveryReportResult> getDeliveryReportTask;\n\n    public QuickSms() {\n\n    }\n\n    /**\n     * @param username\n     */\n    private void setUsername(String username) {\n        this.username = username;\n    }\n\n    /**\n     * @param password\n     */\n    private void setPassword(String password) {\n        this.password = password;\n    }\n\n    /**\n     * @param sms\n     * @return Task<SendSmsResult>\n     */\n    public Task<SendSmsResult> sendSms(Sms sms) {\n        if (sendSmsTask == null) {\n            sendSmsTask = new Task<>();\n        }\n        QuickSmsService quickSmsService = QuickSmsApiClient.createService(QuickSmsService.class);\n        Call<String> balanceCall =  quickSmsService.sendSms(\n                this.username, this.password,sms.getSender(),sms.getMessage(),sms.getRecipient(),\n                BALANCE_QUERY,sms.getSchedule(),CONVERT_QUERY,REPORT_QUERY,\n                sms.isSupportDnd() ? ROUTE_QUERY_DND: ROUTE_QUERY_NO_DND\n        );\n        balanceCall.enqueue(new Callback<String>() {\n            @Override\n            public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {\n                String result = response.body();\n                if (result != null) {\n                    if (result.contains("OK")) {\n                        SendSmsResult sendSmsResult = QuickSmsHelper.getSmsResult(result);\n                        sendSmsTask.getSuccessListener().onSuccess(sendSmsResult);\n                    } else {\n                        String message = QuickSmsHelper.getErrorMessageFromCode(result);\n                        QuickSmsException quickSmsException = new QuickSmsException(message);\n                        sendSmsTask.getFailureListener().onFailure(quickSmsException);\n                    }\n                }\n            }\n\n            @Override\n            public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {\n                QuickSmsException quickSmsException = new QuickSmsException(QuickSmsConstants.COMMON_ERROR_MESSAGE, t);\n                sendSmsTask.getFailureListener().onFailure(quickSmsException);\n            }\n        });\n        return sendSmsTask;\n    }\n\n    /**\n     * @return Task<GetAccountBalanceResult>\n     */\n    public Task<GetAccountBalanceResult> getAccountBalance() {\n        if (getAccountBalanceTask == null) {\n            getAccountBalanceTask = new Task<>();\n        }\n        QuickSmsService quickSmsService = QuickSmsApiClient.createService(QuickSmsService.class);\n        Call<String> balanceCall =  quickSmsService.getBalance(this.username,this.password,BALANCE_QUERY);\n        balanceCall.enqueue(new Callback<String>() {\n            @Override\n            public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {\n                String result = response.body();\n                if (result != null) {\n                    if (result.equals(QuickSmsConstants.ErrorCode.INVALID_SENDER)) {\n                        QuickSmsException quickSmsException = new QuickSmsException(QuickSmsConstants.COMMON_ERROR_MESSAGE);\n                        getAccountBalanceTask.getFailureListener().onFailure(quickSmsException);\n                        return;\n                    }\n                    GetAccountBalanceResult balanceResult = new GetAccountBalanceResult();\n                    balanceResult.setBalance(Double.parseDouble(result));\n                    getAccountBalanceTask.getSuccessListener().onSuccess(balanceResult);\n                }\n            }\n\n            @Override\n            public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {\n                QuickSmsException quickSmsException = new QuickSmsException(QuickSmsConstants.COMMON_ERROR_MESSAGE, t);\n                getAccountBalanceTask.getFailureListener().onFailure(quickSmsException);\n            }\n        });\n        return getAccountBalanceTask;\n    }\n\n    /**\n     * @param messageId\n     * @return Task<GetDeliveryReportResult>\n     */\n    public Task<GetDeliveryReportResult> getDeliveryReport(String messageId) {\n        if (getDeliveryReportTask == null) {\n            getDeliveryReportTask = new Task<>();\n        }\n        QuickSmsService quickSmsService = QuickSmsApiClient.createService(QuickSmsService.class);\n        Call<String> balanceCall =  quickSmsService.getDeliveryReport(\n                this.username, this.password, messageId\n        );\n        balanceCall.enqueue(new Callback<String>() {\n            @Override\n            public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {\n                String result = response.body();\n                if (result != null) {\n                    if (result.isEmpty()) {\n                        QuickSmsException quickSmsException = new QuickSmsException(QuickSmsConstants.COMMON_ERROR_MESSAGE);\n                        getDeliveryReportTask.getFailureListener().onFailure(quickSmsException);\n                        return;\n                    }\n                    GetDeliveryReportResult reportResult = new GetDeliveryReportResult();\n                    reportResult.setStatus(result);\n                    getDeliveryReportTask.getSuccessListener().onSuccess(reportResult);\n                }\n            }\n\n            @Override\n            public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {\n                QuickSmsException quickSmsException = new QuickSmsException(\n                        QuickSmsConstants.COMMON_ERROR_MESSAGE, t);\n                getDeliveryReportTask.getFailureListener().onFailure(quickSmsException);\n            }\n        });\n        return getDeliveryReportTask;\n    }\n\n    public static class Builder {\n\n        private String username = "";\n        private String password = "";\n\n        /**\n         * @param username\n         * @return Builder\n         */\n        public Builder setUsername(@NonNull String username) {\n            this.username = username;\n            return this;\n        }\n\n        /**\n         * @param password\n         * @return Builder\n         */\n        public Builder setPassword(@NonNull String password) {\n            this.password = password;\n            return this;\n        }\n\n        /**\n         * @return QuickSms\n         */\n        public QuickSms build() {\n            QuickSms quickSms = new QuickSms();\n            quickSms.setUsername(this.username);\n            quickSms.setPassword(this.password);\n            return quickSms;\n        }\n    }\n\n}\n"
+]
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSms.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+didClose: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSms.java"
+]
+didOpen: TextDocumentItem [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+  languageId = "java"
+  version = 1
+  text = "/*\n * Copyright 2018 Emmanuel Kehinde\n *\n * Licensed under the Apache License, Version 2.0 (the "License");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an "AS IS" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage com.emmanuelkehinde.quicksms;\n\nclass QuickSmsConstants {\n\n    public static String COMMON_ERROR_MESSAGE = "An error has occurred, check your internet connection and try again";\n\n    public static class Query {\n        public static final String USERNAME = "username";\n        public static final String PASSWORD = "password";\n        public static final String SENDER = "sender";\n        public static final String MESSAGE = "message";\n        public static final String RECIPIENT = "recipient";\n        public static final String BALANCE = "balance";\n        public static final String SCHEDULE = "schedule";\n        public static final String CONVERT = "convert";\n        public static final String REPORT = "report";\n        public static final String ROUTE = "route";\n        public static final String MESSAGE_ID = "msgid";\n    }\n\n    public static class ErrorCode {\n        public static final String INCORRECT_USERNAME_OR_PASSWORD = "1001";\n        public static final String INVALID_SENDER = "1002";\n        public static final String INVALID_MESSAGE = "1003";\n        public static final String INVALID_RECIPIENT = "1004";\n        public static final String INSUFFICIENT_BALANCE = "1005";\n    }\n\n    public static class ErrorMessage {\n        public static final String INCORRECT_USERNAME_OR_PASSWORD = "Incorrect Username or Password specified";\n        public static final String INVALID_SENDER = "Invalid Sender ID";\n        public static final String INVALID_MESSAGE = "Invalid Message";\n        public static final String INVALID_RECIPIENT = "Invalid Recipient(s) Number";\n        public static final String INSUFFICIENT_BALANCE = "Insufficient Balance";\n    }\n}\n"
+]
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+didClose: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+didOpen: TextDocumentItem [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/SendSmsResult.java"
+  languageId = "java"
+  version = 1
+  text = "/*\n * Copyright 2018 Emmanuel Kehinde\n *\n * Licensed under the Apache License, Version 2.0 (the "License");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an "AS IS" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage com.emmanuelkehinde.quicksms;\n\n/**\n * POJO representing result from Send Sms request\n */\npublic class SendSmsResult {\n\n    private String totalNumberOfSmsCreditsUsed;\n    private String messageId;\n\n    public SendSmsResult() {\n    }\n\n    /**\n     * @return String\n     */\n    public String getTotalNumberOfSmsCreditsUsed() {\n        return totalNumberOfSmsCreditsUsed;\n    }\n\n    /**\n     * @param totalNumberOfSmsCreditsUsed\n     */\n    protected void setTotalNumberOfSmsCreditsUsed(String totalNumberOfSmsCreditsUsed) {\n        this.totalNumberOfSmsCreditsUsed = totalNumberOfSmsCreditsUsed;\n    }\n\n    /**\n     * @return String\n     */\n    public String getMessageId() {\n        return messageId;\n    }\n\n    /**\n     * @param messageId\n     */\n    protected void setMessageId(String messageId) {\n        this.messageId = messageId;\n    }\n\n}\n"
+]
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/SendSmsResult.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/SendSmsResult.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+didOpen: TextDocumentItem [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSms.java"
+  languageId = "java"
+  version = 1
+  text = "/*\n * Copyright 2018 Emmanuel Kehinde\n *\n * Licensed under the Apache License, Version 2.0 (the "License");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an "AS IS" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage com.emmanuelkehinde.quicksms;\n\nimport android.support.annotation.NonNull;\nimport android.util.Log;\n\nimport retrofit2.Call;\nimport retrofit2.Callback;\nimport retrofit2.Response;\n\n\npublic class QuickSms {\n\n    private static final String BALANCE_QUERY = "1";\n    private static final String CONVERT_QUERY = "1";\n    private static final String REPORT_QUERY = "1";\n    private static final String ROUTE_QUERY_DND = "1";\n    private static final String ROUTE_QUERY_NO_DND = "0";\n\n    private String username;\n    private String password;\n\n    private Task<SendSmsResult> sendSmsTask;\n    private Task<GetAccountBalanceResult> getAccountBalanceTask;\n    private Task<GetDeliveryReportResult> getDeliveryReportTask;\n\n    public QuickSms() {\n\n    }\n\n    /**\n     * @param username\n     */\n    private void setUsername(String username) {\n        this.username = username;\n    }\n\n    /**\n     * @param password\n     */\n    private void setPassword(String password) {\n        this.password = password;\n    }\n\n    /**\n     * @param sms\n     * @return Task<SendSmsResult>\n     */\n    public Task<SendSmsResult> sendSms(Sms sms) {\n        if (sendSmsTask == null) {\n            sendSmsTask = new Task<>();\n        }\n        QuickSmsService quickSmsService = QuickSmsApiClient.createService(QuickSmsService.class);\n        Call<String> balanceCall =  quickSmsService.sendSms(\n                this.username, this.password,sms.getSender(),sms.getMessage(),sms.getRecipient(),\n                BALANCE_QUERY,sms.getSchedule(),CONVERT_QUERY,REPORT_QUERY,\n                sms.isSupportDnd() ? ROUTE_QUERY_DND: ROUTE_QUERY_NO_DND\n        );\n        balanceCall.enqueue(new Callback<String>() {\n            @Override\n            public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {\n                String result = response.body();\n                if (result != null) {\n                    if (result.contains("OK")) {\n                        SendSmsResult sendSmsResult = QuickSmsHelper.getSmsResult(result);\n                        sendSmsTask.getSuccessListener().onSuccess(sendSmsResult);\n                    } else {\n                        String message = QuickSmsHelper.getErrorMessageFromCode(result);\n                        QuickSmsException quickSmsException = new QuickSmsException(message);\n                        sendSmsTask.getFailureListener().onFailure(quickSmsException);\n                    }\n                }\n            }\n\n            @Override\n            public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {\n                QuickSmsException quickSmsException = new QuickSmsException(QuickSmsConstants.COMMON_ERROR_MESSAGE, t);\n                sendSmsTask.getFailureListener().onFailure(quickSmsException);\n            }\n        });\n        return sendSmsTask;\n    }\n\n    /**\n     * @return Task<GetAccountBalanceResult>\n     */\n    public Task<GetAccountBalanceResult> getAccountBalance() {\n        if (getAccountBalanceTask == null) {\n            getAccountBalanceTask = new Task<>();\n        }\n        QuickSmsService quickSmsService = QuickSmsApiClient.createService(QuickSmsService.class);\n        Call<String> balanceCall =  quickSmsService.getBalance(this.username,this.password,BALANCE_QUERY);\n        balanceCall.enqueue(new Callback<String>() {\n            @Override\n            public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {\n                String result = response.body();\n                if (result != null) {\n                    if (result.equals(QuickSmsConstants.ErrorCode.INVALID_SENDER)) {\n                        QuickSmsException quickSmsException = new QuickSmsException(QuickSmsConstants.COMMON_ERROR_MESSAGE);\n                        getAccountBalanceTask.getFailureListener().onFailure(quickSmsException);\n                        return;\n                    }\n                    GetAccountBalanceResult balanceResult = new GetAccountBalanceResult();\n                    balanceResult.setBalance(Double.parseDouble(result));\n                    getAccountBalanceTask.getSuccessListener().onSuccess(balanceResult);\n                }\n            }\n\n            @Override\n            public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {\n                QuickSmsException quickSmsException = new QuickSmsException(QuickSmsConstants.COMMON_ERROR_MESSAGE, t);\n                getAccountBalanceTask.getFailureListener().onFailure(quickSmsException);\n            }\n        });\n        return getAccountBalanceTask;\n    }\n\n    /**\n     * @param messageId\n     * @return Task<GetDeliveryReportResult>\n     */\n    public Task<GetDeliveryReportResult> getDeliveryReport(String messageId) {\n        if (getDeliveryReportTask == null) {\n            getDeliveryReportTask = new Task<>();\n        }\n        QuickSmsService quickSmsService = QuickSmsApiClient.createService(QuickSmsService.class);\n        Call<String> balanceCall =  quickSmsService.getDeliveryReport(\n                this.username, this.password, messageId\n        );\n        balanceCall.enqueue(new Callback<String>() {\n            @Override\n            public void onResponse(@NonNull Call<String> call, @NonNull Response<String> response) {\n                String result = response.body();\n                if (result != null) {\n                    if (result.isEmpty()) {\n                        QuickSmsException quickSmsException = new QuickSmsException(QuickSmsConstants.COMMON_ERROR_MESSAGE);\n                        getDeliveryReportTask.getFailureListener().onFailure(quickSmsException);\n                        return;\n                    }\n                    GetDeliveryReportResult reportResult = new GetDeliveryReportResult();\n                    reportResult.setStatus(result);\n                    getDeliveryReportTask.getSuccessListener().onSuccess(reportResult);\n                }\n            }\n\n            @Override\n            public void onFailure(@NonNull Call<String> call, @NonNull Throwable t) {\n                QuickSmsException quickSmsException = new QuickSmsException(\n                        QuickSmsConstants.COMMON_ERROR_MESSAGE, t);\n                getDeliveryReportTask.getFailureListener().onFailure(quickSmsException);\n            }\n        });\n        return getDeliveryReportTask;\n    }\n\n    public static class Builder {\n\n        private String username = "";\n        private String password = "";\n\n        /**\n         * @param username\n         * @return Builder\n         */\n        public Builder setUsername(@NonNull String username) {\n            this.username = username;\n            return this;\n        }\n\n        /**\n         * @param password\n         * @return Builder\n         */\n        public Builder setPassword(@NonNull String password) {\n            this.password = password;\n            return this;\n        }\n\n        /**\n         * @return QuickSms\n         */\n        public QuickSms build() {\n            QuickSms quickSms = new QuickSms();\n            quickSms.setUsername(this.username);\n            quickSms.setPassword(this.password);\n            return quickSms;\n        }\n    }\n\n}\n"
+]
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSms.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSms.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+didOpen: TextDocumentItem [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+  languageId = "java"
+  version = 1
+  text = "/*\n * Copyright 2018 Emmanuel Kehinde\n *\n * Licensed under the Apache License, Version 2.0 (the "License");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *     http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an "AS IS" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n\npackage com.emmanuelkehinde.quicksms;\n\nclass QuickSmsConstants {\n\n    public static String COMMON_ERROR_MESSAGE = "An error has occurred, check your internet connection and try again";\n\n    public static class Query {\n        public static final String USERNAME = "username";\n        public static final String PASSWORD = "password";\n        public static final String SENDER = "sender";\n        public static final String MESSAGE = "message";\n        public static final String RECIPIENT = "recipient";\n        public static final String BALANCE = "balance";\n        public static final String SCHEDULE = "schedule";\n        public static final String CONVERT = "convert";\n        public static final String REPORT = "report";\n        public static final String ROUTE = "route";\n        public static final String MESSAGE_ID = "msgid";\n    }\n\n    public static class ErrorCode {\n        public static final String INCORRECT_USERNAME_OR_PASSWORD = "1001";\n        public static final String INVALID_SENDER = "1002";\n        public static final String INVALID_MESSAGE = "1003";\n        public static final String INVALID_RECIPIENT = "1004";\n        public static final String INSUFFICIENT_BALANCE = "1005";\n    }\n\n    public static class ErrorMessage {\n        public static final String INCORRECT_USERNAME_OR_PASSWORD = "Incorrect Username or Password specified";\n        public static final String INVALID_SENDER = "Invalid Sender ID";\n        public static final String INVALID_MESSAGE = "Invalid Message";\n        public static final String INVALID_RECIPIENT = "Invalid Recipient(s) Number";\n        public static final String INSUFFICIENT_BALANCE = "Insufficient Balance";\n    }\n}\n"
+]
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+hover: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)
+documentSymbol: TextDocumentIdentifier [
+  uri = "file:///home/belle/sublime/quicksms-android/quicksms/src/main/java/com/emmanuelkehinde/quicksms/QuickSmsConstants.java"
+]
+Cannot determine document symbols
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.
+	at com.sun.org.apache.xerces.internal.parsers.DOMParser.parse(DOMParser.java:257)
+	at com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderImpl.parse(DocumentBuilderImpl.java:339)
+	at javax.xml.parsers.DocumentBuilder.parse(DocumentBuilder.java:121)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.hasElementFromCamelNamespace(ParserXMLFileHelper.java:80)
+	at com.github.cameltooling.lsp.internal.parser.ParserXMLFileHelper.getRouteNodes(ParserXMLFileHelper.java:117)
+	at com.github.cameltooling.lsp.internal.documentsymbol.DocumentSymbolProcessor.lambda$getDocumentSymbols$0(DocumentSymbolProcessor.java:53)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1590)
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1582)
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:289)
+	at java.util.concurrent.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1056)
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1692)
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:157)

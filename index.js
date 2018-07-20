@@ -1,6 +1,6 @@
 const fs = require('fs');
 const request = require('request');
-const parse = require('./parse')
+const {_parseUrl, _checkCredentials} = require('./parse')
 
 class quickSms{
     constructor(){
@@ -15,13 +15,13 @@ class quickSms{
 
     sendSms(sender,message,recipient){
         return new Promise((resolve, reject) => {
-            parse._checkCredentials(this).then(() => {
-                let url = parse._parseUrl(sender, message, recipient, this);
+            _checkCredentials(this).then(() => {
+                let url = _parseUrl(sender, message, recipient, this);
                 request(url, (err,response,body) => {
                     if(err) cb(err);
                     cb(body);
                 })
-            });  
+            });
         });
     }
       
