@@ -1,12 +1,11 @@
 const fs = require('fs');
 const request = require('request');
+const parse = require('./parse')
 
 class quickSms{
     constructor(){
         this.username;
         this.password;
-        this.base_url = 'http://www.quicksms1.com/api/sendsms.php?';
-        this.end_url = '&report=1&convert=1&route=1';
     }
 
     setCredentials(username, password){
@@ -14,31 +13,19 @@ class quickSms{
         this.password = password;
     }
 
-    genUrl(sender,message,recipient){
-    let url = '';
-    if(typeof recipient !== 'object'){
-        url = this.base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient+this.end_url;
+    sendSms(sender,message,recipient){
+        return new Promise((resolve, reject) => {
+            parse._checkCredentials(this).then(() => {
+                let url = parse._parseUrl(sender, message, recipient, this);
+                request(url, (err,response,body) => {
+                    if(err) cb(err);
+                    cb(body);
+                })
+            });  
+        });
     }
-    else{
-        url = this.base_url+'username='+this.username+'&password='+this.password+'&sender='+sender+"&message="+message+"&recipient="+recipient.join(',')+this.end_url;
-    }
-    return url;
-    }
-
-
-    sendSms(sender,message,recipient,cb){
-        if(!this.username && !this.password){
-            console.log('username or password is incorrect');
-            cb(err);
-            return;
-        }
-        let url = this.genUrl(sender,message,recipient);
-       
-        request(url, (err,response,body) => {
-            if(err) cb(err);
-            cb(body);
-        })
-    }
+      
+    
 
     sendBulk(sender,message,recipientFile,cb){
         if(!this.username && !this.password){
@@ -64,7 +51,6 @@ class quickSms{
 
     getDeliveryReport(msgId,cb){
         if(!this.username && !this.password){
-            conosle.log('jjjj')
         let url = "http://www.quicksms1.com/api/getdelivery.php?username="+this.username+"&password="+this.password+"&msgid="+msgId;
         console.log(url);
         request(url, (err, response,body) => {
